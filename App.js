@@ -1,8 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity} from 'react-native';
-import { Accelerometer } from 'expo';
+import { Accelerometer, Gyroscope } from 'expo';
 
 let INTERVAL = 100;
+
+// figure out what the max acceleration is, don't go past that (cap it) (absolute value)
+// to filter on velocity:
+// check for a drift, and quantify the error
+
+// plot 3d line chart
 
 export default class App extends React.Component {
   constructor(props) {
@@ -17,18 +23,25 @@ export default class App extends React.Component {
       positionDataX: [],
       positionDataY: [],
       positionDataZ: [],
-      points: 0,
+      collectPoints: true,
       accelerometerData: {},
+      gyroscopeData: {},
       positionPoints: [{x: 0, y: 0, z: 0}],
       startButtonText: "Start Collecting Accel Data"
     };
   }
 
   componentDidMount() {
-    Accelerometer.setUpdateInterval(100);
+    Accelerometer.setUpdateInterval(INTERVAL);
     Accelerometer.addListener(accelerometerData => {
       this.setState({ accelerometerData });
     });
+    Gyroscope.setUpdateInterval(INTERVAL);
+    Gyroscope.addListener(gyroscopeData => {
+      this.setState({ gyroscopeData });
+    });
+    console.log("\n\n\nG:")
+    console.log(Gyroscope);
   }
 
   findPositionX() {
@@ -43,13 +56,21 @@ export default class App extends React.Component {
     //   xVeloc.push((prevAccel + xAccel[xAccel.length - 1]) / 2);
     //   this.setState({velocDataX: xVeloc});
     //   return (prevVeloc + xVeloc[xVeloc.length - 1]) / 2;
-    // }
+    // } else {
 
-    // return 0;
+    // }
 
     let xAccel = this.state.accelDataX.slice();
     let xVeloc = this.state.velocDataX.slice();
     let xPosit = this.state.positionDataX.slice();
+
+    // let accelSum;
+    // for (let i = xAccel.length - 1; i >= xAccel.length - 5; i--) {
+    //   accelSum += xAccel[i];
+    // }
+    // let accelAverage = accelSum / 5;
+    // console.log(accelAverage);
+
     if (xAccel.length > 1) {
       xVeloc.push(xVeloc[xVeloc.length - 1] + xAccel[xAccel.length - 1]);
       xPosit.push(xPosit[xPosit.length - 1] + xVeloc[xVeloc.length - 1]);
@@ -109,6 +130,7 @@ export default class App extends React.Component {
     // Update accelData state
     this.setState({accelDataX: tempDataX, accelDataY: tempDataY, accelDataZ: tempDataZ})
 
+    //if (tempDataX.length % 5 === 0) {
     // Calculate the xPosition
     this.findPositionX();
 
@@ -117,10 +139,11 @@ export default class App extends React.Component {
 
     // Calculate the zPosition
     this.findPositionZ();
+    //}
   }
 
   onPressCollectData() {
-    if (this.state.points === 0) {
+    if (this.state.collectPoints) {
       this.intervalObj = setInterval(this.tick.bind(this), INTERVAL);
       this.setState({startButtonText: "Stop Collecting Accel Data"});
     }
@@ -128,10 +151,11 @@ export default class App extends React.Component {
       clearInterval(this.intervalObj);
       this.setState({startButtonText: "Start Collecting Accel Data"});
     }
-    this.setState({points: this.state.points + 1});
+    // Do this at the end because it doesn't change state quick enough
+    this.setState({collectPoints: !this.state.collectPoints});
   }
 
-  onPressCalculateDistance() {
+  onPressPrintPositions() {
     console.log("Accel Data: " + this.state.accelDataX.join(",") + "\n");
     console.log("Position Data: " + this.state.positionDataX.join(",") + "\n");
 
@@ -162,6 +186,7 @@ export default class App extends React.Component {
   }
 
   onPressSendData() {
+    //fetch('http://153.106.81.50:3000/',{
     //fetch('http://172.20.10.2:3000/',{
     fetch('http://10.0.0.44:3000/',{
       method: 'POST',
@@ -175,19 +200,27 @@ export default class App extends React.Component {
 
   render() {
     let { x, y, z } = this.state.accelerometerData;
+    let { p, r, w } = this.state.gyroscopeData;
+    // let { x, y, z } = this.state.gyroscopeData;
     return (
       <View style={styles.container}>
         <Text>Accelerometer:</Text>
         <Text>x: {round(x)} y: {round(y)} z: {round(z)}</Text>
+
+        <Text>Gyroscope:</Text>
+        <Text>pitch: {round(p)} roll: {round(r)} yaw: {round(w)}</Text>
+
+        {/* <Text>Gyroscope:</Text>
+        <Text>pitch: {round(x)} roll: {round(y)} yaw: {round(z)}</Text> */}
+
         <TouchableOpacity
           style={styles.button}
           onPress={this.onPressCollectData.bind(this)}>
           <Text style={styles.buttonText}>{this.state.startButtonText}</Text>
         </TouchableOpacity>
 
-        <Text>DataX: {this.state.accelDataX.length}</Text>
-        <Text>DataY: {this.state.accelDataY.length}</Text>
-        <Text>DataZ: {this.state.accelDataZ.length}</Text>
+        <Text>Accel Data Count: {this.state.accelDataX.length}</Text>
+        <Text>Posit Data Count: {this.state.positionDataX.length}</Text>
 
         <TouchableOpacity
           style={styles.button}
@@ -195,10 +228,12 @@ export default class App extends React.Component {
           <Text style={styles.buttonText}>Track Position Point</Text>
         </TouchableOpacity>
 
+        <Text>Position Point Count: {this.state.positionPoints.length}</Text>
+
         <TouchableOpacity
           style={styles.button}
-          onPress={this.onPressCalculateDistance.bind(this)}>
-          <Text style={styles.buttonText}>Print Position</Text>
+          onPress={this.onPressPrintPositions.bind(this)}>
+          <Text style={styles.buttonText}>Print Positions</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
