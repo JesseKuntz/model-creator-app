@@ -3,7 +3,7 @@
   "expoServerPort": null,
   "packagerPort": null,
   "packagerPid": null,
-  "expoServerNgrokUrl": null,
-  "packagerNgrokUrl": null,
-  "ngrokPid": null
+  "expoServerNgrokUrl": "https://x5-ehk.anonymous.model-creator-app.exp.direct",
+  "packagerNgrokUrl": "https://packager.x5-ehk.anonymous.model-creator-app.exp.direct",
+  "ngrokPid": 36094
 }
