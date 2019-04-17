@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo';
-import AHRS from 'ahrs';
 import asciichart from 'asciichart';
 
 let INTERVAL = 30;
@@ -14,31 +13,6 @@ let executionTime = [];
 
 let timer = null;
 let times = [0];
-
-const madgwick = new AHRS({
-  /*
-  * The sample interval, in Hz.
-  */
-  sampleInterval: 20,
-
-  /*
-  * Choose from the `Madgwick` or `Mahony` filter.
-  */
-  algorithm: 'Madgwick',
-
-  /*
-  * The filter noise value, smaller values have
-  * smoother estimates, but have higher latency.
-  * This only works for the `Madgwick` filter.
-  */
-  beta: 0.4,
-
-  /*
-  * The filter noise values for the `Mahony` filter.
-  */
-  kp: 0.5,
-  ki: 0,
-});
 
 export default class App extends React.Component {
   // Set up the initial state
@@ -60,25 +34,15 @@ export default class App extends React.Component {
       gyroDataP: [],
       gyroDataR: [],
       gyroDataW: [],
-      magDataX: [],
-      magDataY: [],
-      magDataZ: [],
-      fusionDataX: [],
-      fusionDataY: [],
-      fusionDataZ: [],
-      fusionVelocDataX: [],
-      fusionVelocDataY: [],
-      fusionVelocDataZ: [],
-      fusionPositionDataX: [],
-      fusionPositionDataY: [],
-      fusionPositionDataZ: [],
+      avgGyroDataP: [],
+      avgGyroDataR: [],
+      avgGyroDataW: [],
       collectPoints: true,
       accelerometerData: {},
       gyroscopeData: {},
-      magnetometerData: {},
       positionPoints: [{ x: 0, y: 0, z: 0 }],
+      currentAngle: {},
       // positionPoints: [{"x":0,"y":0,"z":0},{"x":-0.03517225879231546,"y":-0.2117156680413678,"z":0},{"x":-0.005328681826757817,"y":-0.5336087904524555,"z":0},{"x":0.2134250259067349,"y":-0.983996844430415,"z":0},{"x":0.45743091510447875,"y":-1.3546667530961018,"z":0},{"x":0,"y":0,"z":0},{"x":-0.8690133680888874,"y":-0.981780185983717,"z":0},{"x":-1.1039704520830214,"y":-1.6050787404007893,"z":0},{"x":-1.4349676616568765,"y":-2.3924557224784833,"z":0},{"x":-1.9672830119471716,"y":-3.584038695693362,"z":0},{"x":-2.6185877065671876,"y":-5.046198814830581,"z":0},{"x":0,"y":0,"z":0}],
-      fusionPositionPoints: [{ x: 0, y: 0, z: 0 }],
       startButtonText: "Start Collecting Data"
     };
   }
@@ -195,62 +159,13 @@ export default class App extends React.Component {
     }
   }
 
-  findFusionPositionX() {
-    let xAccel = this.state.fusionDataX.slice()
-    let xVeloc = this.state.fusionVelocDataX.slice()
-    let xPosit = this.state.fusionPositionDataX.slice();
-
-    if (xAccel.length > 1) {
-      xVeloc.push(xVeloc[xVeloc.length - 1] + xAccel[xAccel.length - 1]);
-      xPosit.push(xPosit[xPosit.length - 1] + xVeloc[xVeloc.length - 1]);
-      this.setState({ fusionVelocDataX: xVeloc, fusionPositionDataX: xPosit });
-    } else {
-      xVeloc.push(xAccel[0]);
-      xPosit.push(xAccel[0]);
-      this.setState({ fusionVelocDataX: xVeloc, fusionPositionDataX: xPosit });
-    }
-  }
-
-  findFusionPositionY() {
-    let yAccel = this.state.fusionDataY.slice()
-    let yVeloc = this.state.fusionVelocDataY.slice()
-    let yPosit = this.state.fusionPositionDataY.slice();
-
-    if (yAccel.length > 1) {
-      yVeloc.push(yVeloc[yVeloc.length - 1] + yAccel[yAccel.length - 1]);
-      yPosit.push(yPosit[yPosit.length - 1] + yVeloc[yVeloc.length - 1]);
-      this.setState({ fusionVelocDataY: yVeloc, fusionPositionDataY: yPosit });
-    } else {
-      yVeloc.push(yAccel[0]);
-      yPosit.push(yAccel[0]);
-      this.setState({ fusionVelocDataY: yVeloc, fusionPositionDataY: yPosit });
-    }
-  }
-
-  findFusionPositionZ() {
-    let zAccel = this.state.fusionDataZ.slice()
-    let zVeloc = this.state.fusionVelocDataZ.slice()
-    let zPosit = this.state.fusionPositionDataZ.slice();
-
-    if (zAccel.length > 1) {
-      zVeloc.push(zVeloc[zVeloc.length - 1] + zAccel[zAccel.length - 1]);
-      zPosit.push(zPosit[zPosit.length - 1] + zVeloc[zVeloc.length - 1]);
-      this.setState({ fusionVelocDataZ: zVeloc, fusionPositionDataZ: zPosit });
-    } else {
-      zVeloc.push(zAccel[0]);
-      zPosit.push(zAccel[0]);
-      this.setState({ fusionVelocDataZ: zVeloc, fusionPositionDataZ: zPosit });
-    }
-  }
-
   // Read in the sensor values every {INTERVAL} ms, and take the average of every {AVERAGE} values
   tick() {
     // Start of performance check
     // let start = new Date().getTime();
 
     let { x, y, z } = this.state.accelerometerData;
-    // let { x: p, y: r, z: w } = this.state.gyroscopeData;
-    // let { x: mx, y: my, z: mz } = this.state.magnetometerData;
+    let { x: p, y: r, z: w } = this.state.gyroscopeData;
 
     // OFFSETS FOR 100 DATA POINTS
     // let offX = 0.007693737011237684;
@@ -261,14 +176,15 @@ export default class App extends React.Component {
     let offX = 0.00648852144028152;
     let offY = 0.0144764265868573;
 
-    // Drift for X: ?
-    // Drift for Y: ?
-    // Drift for Z: ?
-
     // Get the current accelerations
     let tempDataX = this.state.avgAccelDataX.slice();
     let tempDataY = this.state.avgAccelDataY.slice();
     let tempDataZ = this.state.avgAccelDataZ.slice();
+
+    // Get the current gyroscope rotations
+    let tempDataP = this.state.avgGyroDataP.slice();
+    let tempDataR = this.state.avgGyroDataR.slice();
+    let tempDataW = this.state.avgGyroDataW.slice();
 
     // Threshold Calculations (doesn't work unless you "remove" gravity)
     // if (x < 0.03 && x > -0.03 && y < 0.03 && y > -0.03) {
@@ -280,60 +196,35 @@ export default class App extends React.Component {
       tempDataY.push(y - offY);
       // tempDataZ.push(z + offZ);
       tempDataZ.push(0);
+
+      tempDataP.push(p);
+      tempDataR.push(r);
+      tempDataW.push(w);
     // }
-
-    // // Get the current pitch
-    // let tempDataP = this.state.gyroDataP.slice();
-    // tempDataP.push(p);
-
-    // // Get the current roll
-    // let tempDataR = this.state.gyroDataR.slice();
-    // tempDataR.push(r);
-
-    // // Get the current yaw
-    // let tempDataW = this.state.gyroDataW.slice();
-    // tempDataW.push(w);
-
-    // // Get the current xMagnetometer
-    // let tempDataMX = this.state.magDataX.slice();
-    // tempDataMX.push(mx);
-
-    // // Get the current yMagnetormeter
-    // let tempDataMY = this.state.magDataY.slice();
-    // tempDataMY.push(my);
-
-    // // Get the current zMagnetormeter
-    // let tempDataMZ = this.state.magDataZ.slice();
-    // tempDataMZ.push(mz);
-
-    // Get all of the fusion data
-    // madgwick.update(p, r, w, x, y, z, mx, my, mz);
-    // let madgwickData = madgwick.toVector();
-
-    // let tempMadgwickX = this.state.fusionDataX.slice();
-    // tempMadgwickX.push(madgwickData.x);
-    // let tempMadgwickY = this.state.fusionDataY.slice();
-    // tempMadgwickY.push(madgwickData.y);
-    // let tempMadgwickZ = this.state.fusionDataZ.slice();
-    // tempMadgwickZ.push(madgwickData.z);
 
     // Average handler
     averageCount++;
     if (averageCount == AVERAGE) {
-      tempDataX = this.state.accelDataX.slice()
+      tempDataX = this.state.accelDataX.slice();
       tempDataX.push(arrayAverage(this.state.avgAccelDataX));
-      tempDataY = this.state.accelDataY.slice()
+      tempDataY = this.state.accelDataY.slice();
       tempDataY.push(arrayAverage(this.state.avgAccelDataY));
-      tempDataZ = this.state.accelDataZ.slice()
+      tempDataZ = this.state.accelDataZ.slice();
       tempDataZ.push(arrayAverage(this.state.avgAccelDataZ));
 
-      // Update accelData, gyroData, magData, and fusionData states
+      tempDataP = this.state.gyroDataP.slice();
+      tempDataP.push(arrayAverage(this.state.avgGyroDataP));
+      tempDataR = this.state.gyroDataR.slice();
+      tempDataR.push(arrayAverage(this.state.avgGyroDataR));
+      tempDataW = this.state.gyroDataW.slice();
+      tempDataW.push(arrayAverage(this.state.avgGyroDataW));
+
+      // Update accelData and gyroData states
       this.setState({
         accelDataX: tempDataX, accelDataY:  tempDataY, accelDataZ:  tempDataZ,
-        avgAccelDataX: [], avgAccelDataY: [], avgAccelDataZ: []
-        // gyroDataP: tempDataP, gyroDataR: tempDataR, gyroDataW: tempDataW,
-        // magDataX: tempDataMX, magDataY: tempDataMY, magDataZ: tempDataMZ,
-        // fusionDataX: tempMadgwickX, fusionDataY: tempMadgwickY, fusionDataZ: tempMadgwickZ
+        avgAccelDataX: [], avgAccelDataY: [], avgAccelDataZ: [],
+        gyroDataP: tempDataP, gyroDataR: tempDataR, gyroDataW: tempDataW,
+        avgGyroDataP: [], avgGyroDataR: [], avgGyroDataW: []
       });
 
       averageCount = 0;
@@ -344,14 +235,10 @@ export default class App extends React.Component {
       this.findPositionZ();
     } else {
       this.setState({
-        avgAccelDataX: tempDataX, avgAccelDataY: tempDataY, avgAccelDataZ: tempDataZ
+        avgAccelDataX: tempDataX, avgAccelDataY: tempDataY, avgAccelDataZ: tempDataZ,
+        avgGyroDataP: tempDataP, avgGyroDataR: tempDataR, avgGyroDataW: tempDataW
       });
     }
-
-    // Calculate the positions based off of sensor fusion
-    // this.findFusionPositionX();
-    // this.findFusionPositionY();
-    // this.findFusionPositionZ();
 
     // End of performance check
     // let end = new Date().getTime();
@@ -535,9 +422,9 @@ export default class App extends React.Component {
     let points = stitchPoints(this.state.positionPoints);
     this.setState({positionPoints: points});
 
-    // fetch('http://153.106.86.49:3000/',{
+    fetch('http://153.106.86.133:3000/',{
     // fetch('http://172.20.10.2:3000/',{
-    fetch('http://10.0.0.44:3000/', {
+    // fetch('http://10.0.0.44:3000/', {
       method: 'POST',
       body: JSON.stringify(arrayToJson(this.state.positionPoints)),
       headers: { "Content-Type": "application/json" }
@@ -550,18 +437,14 @@ export default class App extends React.Component {
   render() {
     let { x, y, z } = this.state.accelerometerData;
     let { x: p, y: r, z: w } = this.state.gyroscopeData;
-    let { x: mx, y: my, z: mz } = this.state.magnetometerData;
 
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Accelerometer:</Text>
         <Text style={styles.text}>x: {round(x)} y: {round(y)} z: {round(z)}</Text>
 
-        {/* <Text>Gyroscope:</Text>
-        <Text>pitch: {round(p)} roll: {round(r)} yaw: {round(w)}</Text>
-
-        <Text>Magnetometer:</Text>
-        <Text>x: {round(mx)} y: {round(my)} z: {round(mz)}</Text> */}
+        <Text style={styles.text}>Gyroscope:</Text>
+        <Text style={styles.text}>pitch: {round(p)} roll: {round(r)} yaw: {round(w)}</Text>
 
         <TouchableOpacity
           style={styles.button}
@@ -682,12 +565,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   button: {
-    backgroundColor: '#52B7BD',
+    backgroundColor: '#09a8cd',
     borderRadius: 10,
     margin: 10
   },
   debug: {
-    backgroundColor: '#f45b69',
+    backgroundColor: '#90d9ef',
     borderRadius: 10,
     margin: 40
   },
