@@ -3,8 +3,9 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo';
 import asciichart from 'asciichart';
 
-let INTERVAL = 30;
+let INTERVAL = 100;
 let AVERAGE = 3;
+let RAD_TO_DEG = 57.29578;
 
 // Tester vars so I don't have to deal with state yet
 let averageCount = 0;
@@ -31,9 +32,6 @@ export default class App extends React.Component {
       positionDataX: [],
       positionDataY: [],
       positionDataZ: [],
-      gyroDataP: [],
-      gyroDataR: [],
-      gyroDataW: [],
       avgGyroDataP: [],
       avgGyroDataR: [],
       avgGyroDataW: [],
@@ -41,7 +39,12 @@ export default class App extends React.Component {
       accelerometerData: {},
       gyroscopeData: {},
       positionPoints: [{ x: 0, y: 0, z: 0 }],
-      currentAngle: {},
+      gyroAngleP: 0,
+      gyroAngleR: 0,
+      gyroAngleW: 0,
+      finalAngleX: 0,
+      finalAngleY: 0,
+      gyroChanged: true,
       // positionPoints: [{"x":0,"y":0,"z":0},{"x":-0.03517225879231546,"y":-0.2117156680413678,"z":0},{"x":-0.005328681826757817,"y":-0.5336087904524555,"z":0},{"x":0.2134250259067349,"y":-0.983996844430415,"z":0},{"x":0.45743091510447875,"y":-1.3546667530961018,"z":0},{"x":0,"y":0,"z":0},{"x":-0.8690133680888874,"y":-0.981780185983717,"z":0},{"x":-1.1039704520830214,"y":-1.6050787404007893,"z":0},{"x":-1.4349676616568765,"y":-2.3924557224784833,"z":0},{"x":-1.9672830119471716,"y":-3.584038695693362,"z":0},{"x":-2.6185877065671876,"y":-5.046198814830581,"z":0},{"x":0,"y":0,"z":0}],
       startButtonText: "Start Collecting Data"
     };
@@ -57,11 +60,6 @@ export default class App extends React.Component {
     Gyroscope.setUpdateInterval(INTERVAL);
     Gyroscope.addListener(gyroscopeData => {
       this.setState({ gyroscopeData });
-    });
-
-    Magnetometer.setUpdateInterval(INTERVAL);
-    Magnetometer.addListener(magnetometerData => {
-      this.setState({ magnetometerData });
     });
   }
 
@@ -186,25 +184,45 @@ export default class App extends React.Component {
     let tempDataR = this.state.avgGyroDataR.slice();
     let tempDataW = this.state.avgGyroDataW.slice();
 
-    // Threshold Calculations (doesn't work unless you "remove" gravity)
-    // if (x < 0.03 && x > -0.03 && y < 0.03 && y > -0.03) {
-    //   tempDataX.push(0);
-    //   tempDataY.push(0);
-    //   tempDataZ.push(0);
-    // } else {
-      tempDataX.push(x - offX);
-      tempDataY.push(y - offY);
-      // tempDataZ.push(z + offZ);
-      tempDataZ.push(0);
+    // Threshold Calculations for Gyroscope
+    if (p < 0.10 && p > -0.10 && r < 0.08 && r > -0.08 && w < 0.08 && w > -0.08) {
+      tempDataP.push(0);
+      tempDataR.push(0);
+      tempDataW.push(0);
+
+      this.setState({gyroChanged: false});
+
+      // IDEA: TURN SCREEN GREEN HERE. ONLY RECORD ACCEL DATA IF THE GYROSCOPE HAS NONE TO MINIMAL ROTATIONS,
+      // WHICH WILL MAKE THE ACCEL MUCH MORE ACCURATE.
+
+      // Threshold Calculations for the Accelerometer
+      // (once it is not rotating, then we check that it not moving)
+      // if (x < 0.03 && x > -0.03 && y < 0.03 && y > -0.03 && z < 0.03 && z > -0.03) {
+      //   tempDataX.push(0);
+      //   tempDataY.push(0);
+      //   tempDataZ.push(0);
+      // }
+    } else {
+      // IDEA CONTINUED: TURN SCREEN RED HERE. SHOULDN'T BE RECORDING IF IT IS ROTATING BECAUSE
+      // THEN GRAVITY IS HAVING A HUGE EFFECT ON IT.
 
       tempDataP.push(p);
       tempDataR.push(r);
       tempDataW.push(w);
-    // }
+
+      this.setState({gyroChanged: true});
+    }
+
+    tempDataX.push(x - offX);
+    tempDataY.push(y - offY);
+    // tempDataZ.push(z + offZ);
+    tempDataZ.push(0);
 
     // Average handler
     averageCount++;
+
     if (averageCount == AVERAGE) {
+      // Accelerometer averaging and updating
       tempDataX = this.state.accelDataX.slice();
       tempDataX.push(arrayAverage(this.state.avgAccelDataX));
       tempDataY = this.state.accelDataY.slice();
@@ -212,19 +230,37 @@ export default class App extends React.Component {
       tempDataZ = this.state.accelDataZ.slice();
       tempDataZ.push(arrayAverage(this.state.avgAccelDataZ));
 
-      tempDataP = this.state.gyroDataP.slice();
-      tempDataP.push(arrayAverage(this.state.avgGyroDataP));
-      tempDataR = this.state.gyroDataR.slice();
-      tempDataR.push(arrayAverage(this.state.avgGyroDataR));
-      tempDataW = this.state.gyroDataW.slice();
-      tempDataW.push(arrayAverage(this.state.avgGyroDataW));
+      // Gyro angle setup
+      let tempGyroAngleP = this.state.gyroAngleP;
+      let tempGyroAngleR = this.state.gyroAngleR;
+      let tempGyroAngleW = this.state.gyroAngleW;
+      tempGyroAngleP += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE;
+      tempGyroAngleR += arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE;
+      tempGyroAngleW += arrayAverage(this.state.avgGyroDataW) * 0.07 * INTERVAL * AVERAGE;
+
+      let accelAngleX = 0;
+      let accelAngleY = 0;
+      let AA = 0.98;
+      let filterAngleX = this.state.finalAngleX;
+      let filterAngleY = this.state.finalAngleY;
+      if (this.state.gyroChanged) {
+        // Accel angle setup
+        accelAngleX = (Math.atan2(arrayAverage(this.state.avgAccelDataY), arrayAverage(this.state.avgAccelDataZ)) + Math.PI) * RAD_TO_DEG;
+        accelAngleY = (Math.atan2(arrayAverage(this.state.avgAccelDataZ), arrayAverage(this.state.avgAccelDataX)) + Math.PI) * RAD_TO_DEG;
+
+        // Final angle calculations (complementary filter)
+        // filterAngleX += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL;
+        filterAngleX = AA * (filterAngleX + arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleX;
+        filterAngleY = AA * (filterAngleY + arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleY;
+      }
 
       // Update accelData and gyroData states
       this.setState({
         accelDataX: tempDataX, accelDataY:  tempDataY, accelDataZ:  tempDataZ,
         avgAccelDataX: [], avgAccelDataY: [], avgAccelDataZ: [],
-        gyroDataP: tempDataP, gyroDataR: tempDataR, gyroDataW: tempDataW,
-        avgGyroDataP: [], avgGyroDataR: [], avgGyroDataW: []
+        avgGyroDataP: [], avgGyroDataR: [], avgGyroDataW: [],
+        gyroAngleP: tempGyroAngleP, gyroAngleR: tempGyroAngleR, gyroAngleW: tempGyroAngleW,
+        finalAngleX: filterAngleX, finalAngleY: filterAngleY
       });
 
       averageCount = 0;
@@ -287,9 +323,27 @@ export default class App extends React.Component {
     let avgZ = 0;
     let len = this.state.accelDataX.length;
 
-    // Checking stitching timer
-    console.log("Stiching Timer: ");
-    console.log(times);
+    // Checking gyroAngle data (right now they aren't the same... but might not matter):
+    // let currAngle = this.state.gyroAngleP;
+    // let currData = this.state.gyroDataP.slice();
+
+    // console.log("Current Angle: ");
+    // console.log(currAngle);
+
+    // console.log("\nGyro Data: ");
+    // console.log(currData);
+
+    // console.log("\nSummed Gyro Data:");
+    // let sum = 0;
+    // for (let i = 0; i < currData.length; i++) {
+    //   sum += currData[i];
+    // }
+    // console.log(sum);
+
+
+    // Checking stitching timer:
+    // console.log("Stiching Timer: ");
+    // console.log(times);
 
     // let xAccel = this.state.accelDataX.slice();
     // let xVeloc = this.state.velocDataX.slice();
@@ -297,14 +351,14 @@ export default class App extends React.Component {
 
     // let yAccel = this.state.accelDataY.slice();
 
-    // Checking Averages
+    // Checking Averages:
     // for(let i = 0; i < len; i++) {
     //   avgX += this.state.accelDataX[i];
     //   avgY += this.state.accelDataY[i];
     //   avgZ += this.state.accelDataZ[i];
     // }
 
-    // Feeding in Accel Data Test
+    // Feeding in Accel Data Test:
     // for (let i = 0; i < len; i++) {
     //   // New / Smart Way
     //   if (i > 1) {
@@ -327,7 +381,7 @@ export default class App extends React.Component {
     //   this.setState({ velocDataX: xVeloc, positionDataX: xPosit });
     // }
 
-    // Printing all arrays
+    // Printing all arrays:
     // console.log("\nAccel Data (X): ");
     // for(let i = 0; i < len; i++) {
     //   console.log(xAccel[i]);
@@ -368,19 +422,19 @@ export default class App extends React.Component {
     // console.log("Position Data (X): " + this.state.positionDataX.join(",") + "\n");
 
     // console.log("Position Points: " + JSON.stringify(this.state.positionPoints));
-    let newDataFormat = arrayToJson(this.state.positionPoints);
-    console.log("X: " + newDataFormat.x.join(",") + "\n");
+    // let newDataFormat = arrayToJson(this.state.positionPoints);
+    // console.log("X: " + newDataFormat.x.join(",") + "\n");
     // console.log("Y: " + newDataFormat.y.join(",") + "\n");
     // console.log("Z: " + newDataFormat.z.join(",") + "\n");
 
-    // Console Graphing (W.I.P.)
+    // Console Graphing (W.I.P.):
     // var s0 = new Array (120);
     // for (var i = 0; i < s0.length; i++) {
     //   s0[i] = 15 * Math.sin (i * ((Math.PI * 4) / s0.length));
     // }
     // console.log (asciichart.plot (s0));
 
-    // Printing
+    // Printing execution times:
     // console.log(`Max Time: ${Math.max(...executionTime)}`);
     // console.log(`Average Time: ${arrayAverage(executionTime)}`);
   }
@@ -441,10 +495,16 @@ export default class App extends React.Component {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Accelerometer:</Text>
-        <Text style={styles.text}>x: {round(x)} y: {round(y)} z: {round(z)}</Text>
+        <Text style={styles.text}>X: {round(x)} Y: {round(y)} Z: {round(z)}</Text>
 
         <Text style={styles.text}>Gyroscope:</Text>
         <Text style={styles.text}>pitch: {round(p)} roll: {round(r)} yaw: {round(w)}</Text>
+
+        <Text style={styles.text}>Current Angles:</Text>
+        <Text style={styles.text}>pitch: {round(this.state.gyroAngleP)} roll: {round(this.state.gyroAngleR)}</Text>
+
+        <Text style={styles.text}>Final Angles:</Text>
+        <Text style={styles.text}>X: {round(this.state.finalAngleX)} Y: {round(this.state.finalAngleY)}</Text>
 
         <TouchableOpacity
           style={styles.button}
@@ -549,6 +609,7 @@ function stitchPoints(points) {
   return points;
 }
 
+// Simple array averaging function
 function arrayAverage(arr) {
   let avg = 0;
   for (let i = 0; i < arr.length; i++) {
