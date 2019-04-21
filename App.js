@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Accelerometer, Gyroscope, Magnetometer } from 'expo';
 import asciichart from 'asciichart';
 
-let INTERVAL = 100;
+let INTERVAL = 30;
 let AVERAGE = 3;
 let RAD_TO_DEG = 57.29578;
 
@@ -34,14 +34,12 @@ export default class App extends React.Component {
       positionDataZ: [],
       avgGyroDataP: [],
       avgGyroDataR: [],
-      avgGyroDataW: [],
       collectPoints: true,
       accelerometerData: {},
       gyroscopeData: {},
       positionPoints: [{ x: 0, y: 0, z: 0 }],
       gyroAngleP: 0,
       gyroAngleR: 0,
-      gyroAngleW: 0,
       finalAngleX: 0,
       finalAngleY: 0,
       gyroChanged: true,
@@ -182,39 +180,35 @@ export default class App extends React.Component {
     // Get the current gyroscope rotations
     let tempDataP = this.state.avgGyroDataP.slice();
     let tempDataR = this.state.avgGyroDataR.slice();
-    let tempDataW = this.state.avgGyroDataW.slice();
 
     // Threshold Calculations for Gyroscope
-    if (p < 0.10 && p > -0.10 && r < 0.08 && r > -0.08 && w < 0.08 && w > -0.08) {
+    if (p < 0.05 && p > -0.05 && r < 0.05 && r > -0.05 && w < 0.05 && w > -0.05) {
       tempDataP.push(0);
       tempDataR.push(0);
-      tempDataW.push(0);
 
       this.setState({gyroChanged: false});
 
       // IDEA: TURN SCREEN GREEN HERE. ONLY RECORD ACCEL DATA IF THE GYROSCOPE HAS NONE TO MINIMAL ROTATIONS,
       // WHICH WILL MAKE THE ACCEL MUCH MORE ACCURATE.
 
-      // Threshold Calculations for the Accelerometer
-      // (once it is not rotating, then we check that it not moving)
-      // if (x < 0.03 && x > -0.03 && y < 0.03 && y > -0.03 && z < 0.03 && z > -0.03) {
-      //   tempDataX.push(0);
-      //   tempDataY.push(0);
-      //   tempDataZ.push(0);
-      // }
     } else {
       // IDEA CONTINUED: TURN SCREEN RED HERE. SHOULDN'T BE RECORDING IF IT IS ROTATING BECAUSE
       // THEN GRAVITY IS HAVING A HUGE EFFECT ON IT.
 
       tempDataP.push(p);
       tempDataR.push(r);
-      tempDataW.push(w);
 
       this.setState({gyroChanged: true});
     }
 
-    tempDataX.push(x - offX);
-    tempDataY.push(y - offY);
+    // Correct the accelerometer readings based off of the known angles
+    let correctX = x - offX;
+    let correctY = y - offY;
+    let angleCorrectX = (this.state.gyroAngleR / 90);
+    let angleCorrectY = (this.state.gyroAngleP / 90);
+
+    tempDataX.push(correctX - angleCorrectX);
+    tempDataY.push(correctY - angleCorrectY);
     // tempDataZ.push(z + offZ);
     tempDataZ.push(0);
 
@@ -230,37 +224,36 @@ export default class App extends React.Component {
       tempDataZ = this.state.accelDataZ.slice();
       tempDataZ.push(arrayAverage(this.state.avgAccelDataZ));
 
+      // Following angle calculations inspired by: http://ozzmaker.com/berryimu/
+
       // Gyro angle setup
       let tempGyroAngleP = this.state.gyroAngleP;
       let tempGyroAngleR = this.state.gyroAngleR;
-      let tempGyroAngleW = this.state.gyroAngleW;
-      tempGyroAngleP += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE;
-      tempGyroAngleR += arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE;
-      tempGyroAngleW += arrayAverage(this.state.avgGyroDataW) * 0.07 * INTERVAL * AVERAGE;
+      tempGyroAngleP += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE * 2;
+      tempGyroAngleR += arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE * 2;
 
-      let accelAngleX = 0;
-      let accelAngleY = 0;
-      let AA = 0.98;
-      let filterAngleX = this.state.finalAngleX;
-      let filterAngleY = this.state.finalAngleY;
-      if (this.state.gyroChanged) {
-        // Accel angle setup
-        accelAngleX = (Math.atan2(arrayAverage(this.state.avgAccelDataY), arrayAverage(this.state.avgAccelDataZ)) + Math.PI) * RAD_TO_DEG;
-        accelAngleY = (Math.atan2(arrayAverage(this.state.avgAccelDataZ), arrayAverage(this.state.avgAccelDataX)) + Math.PI) * RAD_TO_DEG;
+      // let accelAngleX = 0;
+      // let accelAngleY = 0;
+      // let AA = 0.98;
+      // let filterAngleX = this.state.finalAngleX;
+      // let filterAngleY = this.state.finalAngleY;
+      // if (this.state.gyroChanged) {
+      //   // Accel angle setup
+      //   accelAngleX = (Math.atan2(arrayAverage(this.state.avgAccelDataY), arrayAverage(this.state.avgAccelDataZ)) + Math.PI) * RAD_TO_DEG;
+      //   accelAngleY = (Math.atan2(arrayAverage(this.state.avgAccelDataZ), arrayAverage(this.state.avgAccelDataX)) + Math.PI) * RAD_TO_DEG;
 
-        // Final angle calculations (complementary filter)
-        // filterAngleX += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL;
-        filterAngleX = AA * (filterAngleX + arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleX;
-        filterAngleY = AA * (filterAngleY + arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleY;
-      }
+      //   // Final angle calculations (complementary filter)
+      //   filterAngleX = AA * (filterAngleX + arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleX;
+      //   filterAngleY = AA * (filterAngleY + arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE) + (1 - AA) * accelAngleY;
+      // }
 
       // Update accelData and gyroData states
       this.setState({
         accelDataX: tempDataX, accelDataY:  tempDataY, accelDataZ:  tempDataZ,
         avgAccelDataX: [], avgAccelDataY: [], avgAccelDataZ: [],
-        avgGyroDataP: [], avgGyroDataR: [], avgGyroDataW: [],
-        gyroAngleP: tempGyroAngleP, gyroAngleR: tempGyroAngleR, gyroAngleW: tempGyroAngleW,
-        finalAngleX: filterAngleX, finalAngleY: filterAngleY
+        avgGyroDataP: [], avgGyroDataR: [],
+        gyroAngleP: tempGyroAngleP, gyroAngleR: tempGyroAngleR
+        // finalAngleX: filterAngleX, finalAngleY: filterAngleY
       });
 
       averageCount = 0;
@@ -272,7 +265,7 @@ export default class App extends React.Component {
     } else {
       this.setState({
         avgAccelDataX: tempDataX, avgAccelDataY: tempDataY, avgAccelDataZ: tempDataZ,
-        avgGyroDataP: tempDataP, avgGyroDataR: tempDataR, avgGyroDataW: tempDataW
+        avgGyroDataP: tempDataP, avgGyroDataR: tempDataR
       });
     }
 
@@ -309,7 +302,12 @@ export default class App extends React.Component {
                       velocDataZ: [],
                       positionDataX: [],
                       positionDataY: [],
-                      positionDataZ: []
+                      positionDataZ: [],
+                      gyroAngleP: 0,
+                      gyroAngleR: 0,
+                      gyroAngleW: 0,
+                      finalAngleX: 0,
+                      finalAngleY: 0
                     });
     }
     // Do this at the end because it doesn't change state quick enough
@@ -339,7 +337,6 @@ export default class App extends React.Component {
     //   sum += currData[i];
     // }
     // console.log(sum);
-
 
     // Checking stitching timer:
     // console.log("Stiching Timer: ");
@@ -416,11 +413,6 @@ export default class App extends React.Component {
     // console.log("Accel Data (Z): " + this.state.accelDataZ.join(",") + "\n");
     // console.log("AVG OF Accel Data (Z): " + avgZ / len + "\n");
 
-    // console.log("Fusion Accel Data (X): " + this.state.fusionDataX.join(",") + "\n");
-    // console.log("Gyro Data (P): " + this.state.gyroDataP.join(",") + "\n");
-    // console.log("Mag Data (X): " + this.state.magDataX.join(",") + "\n");
-    // console.log("Position Data (X): " + this.state.positionDataX.join(",") + "\n");
-
     // console.log("Position Points: " + JSON.stringify(this.state.positionPoints));
     // let newDataFormat = arrayToJson(this.state.positionPoints);
     // console.log("X: " + newDataFormat.x.join(",") + "\n");
@@ -455,17 +447,7 @@ export default class App extends React.Component {
       }
     );
 
-    // Based off of the sensor fusion data
-    let tempFusionPoints = this.state.fusionPositionPoints.slice();
-    tempFusionPoints.push(
-      {
-        x: this.state.fusionPositionDataX[this.state.fusionPositionDataX.length - 1],
-        y: this.state.fusionPositionDataY[this.state.fusionPositionDataY.length - 1],
-        z: this.state.fusionPositionDataZ[this.state.fusionPositionDataZ.length - 1]
-      }
-    );
-
-    this.setState({ positionPoints: tempPoints, fusionPositionPoints: tempFusionPoints });
+    this.setState({ positionPoints: tempPoints });
   }
 
   onPressSendData() {
@@ -476,9 +458,8 @@ export default class App extends React.Component {
     let points = stitchPoints(this.state.positionPoints);
     this.setState({positionPoints: points});
 
-    fetch('http://153.106.86.133:3000/',{
-    // fetch('http://172.20.10.2:3000/',{
-    // fetch('http://10.0.0.44:3000/', {
+    // fetch('http://153.106.86.133:3000/',{
+    fetch('http://10.0.0.44:3000/', {
       method: 'POST',
       body: JSON.stringify(arrayToJson(this.state.positionPoints)),
       headers: { "Content-Type": "application/json" }
@@ -500,7 +481,7 @@ export default class App extends React.Component {
         <Text style={styles.text}>Gyroscope:</Text>
         <Text style={styles.text}>pitch: {round(p)} roll: {round(r)} yaw: {round(w)}</Text>
 
-        <Text style={styles.text}>Current Angles:</Text>
+        <Text style={styles.text}>Unfiltered Angles:</Text>
         <Text style={styles.text}>pitch: {round(this.state.gyroAngleP)} roll: {round(this.state.gyroAngleR)}</Text>
 
         <Text style={styles.text}>Final Angles:</Text>
@@ -568,21 +549,28 @@ function arrayToJson(objects) {
 function stitchPoints(points) {
   // Edit the position data based off of the timer (higher time = move to the closest point)
   let len = points.length;
-  let thirdOfLen = Math.floor(len / 3);
-  console.log(JSON.stringify(points));
+
+  // Set this to the length of the CURRENT CHAIN, not the length of ALL THE POINTS
+  let chainLength = 1;
+  console.log(points);
 
   // Don't need to touch the first point
-  for (let i = 1; i < len - 1; i++) {
+  for (let i = 1; i < len - 2; i++) {
     let currPoint = points[i];
     let currTime = times[i];
 
+    chainLength++;
+
     // Now if currTime is relatively high, I need to move currPoint closer to a similar point with a lower time
     if (currPoint.x === 0 && currPoint.y === 0) {
+      let thirdOfLen = Math.floor(chainLength / 3);
+
       // Move 'last' 80% of the distance towards 'next', and move 'next' 20% of the distance towards 'last'.
       let last = points[i - 1];
       let next = points[i + 1];
       let xDiff = next.x - last.x;
       let yDiff = next.y - last.y;
+
       // Maybe need a negative/positive check here, and different code for either case...
       last.x += 0.8 * xDiff;
       next.x -= 0.2 * xDiff;
@@ -604,6 +592,7 @@ function stitchPoints(points) {
         }
       }
     }
+    chainLength = 1;
   }
   // Return the altered positions points
   return points;
@@ -642,6 +631,7 @@ const styles = StyleSheet.create({
     margin: 10
   },
   text: {
+    margin: 4,
     color: '#FFFFFF'
   }
 });
