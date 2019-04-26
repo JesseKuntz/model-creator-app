@@ -1,19 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Accelerometer, Gyroscope, Magnetometer } from 'expo';
-import asciichart from 'asciichart';
+import { Accelerometer, Gyroscope } from 'expo';
+import Collapsible from 'react-native-collapsible';
 
 let INTERVAL = 30;
 let AVERAGE = 3;
 let RAD_TO_DEG = 57.29578;
 
-// Tester vars so I don't have to deal with state yet
-let averageCount = 0;
-
+// Really just for debugging
 let executionTime = [];
-
-let timer = null;
-let times = [0];
 
 export default class App extends React.Component {
   // Set up the initial state
@@ -44,7 +39,11 @@ export default class App extends React.Component {
       finalAngleY: 0,
       gyroChanged: true,
       // positionPoints: [{"x":0,"y":0,"z":0},{"x":-0.03517225879231546,"y":-0.2117156680413678,"z":0},{"x":-0.005328681826757817,"y":-0.5336087904524555,"z":0},{"x":0.2134250259067349,"y":-0.983996844430415,"z":0},{"x":0.45743091510447875,"y":-1.3546667530961018,"z":0},{"x":0,"y":0,"z":0},{"x":-0.8690133680888874,"y":-0.981780185983717,"z":0},{"x":-1.1039704520830214,"y":-1.6050787404007893,"z":0},{"x":-1.4349676616568765,"y":-2.3924557224784833,"z":0},{"x":-1.9672830119471716,"y":-3.584038695693362,"z":0},{"x":-2.6185877065671876,"y":-5.046198814830581,"z":0},{"x":0,"y":0,"z":0}],
-      startButtonText: "Start Collecting Data"
+      startButtonText: "Start Collecting Data",
+      startTime: 0,
+      backgroundColor: "#000000",
+      collapsed: true,
+      averageCount: 0
     };
   }
 
@@ -182,19 +181,12 @@ export default class App extends React.Component {
     let tempDataR = this.state.avgGyroDataR.slice();
 
     // Threshold Calculations for Gyroscope
-    if (p < 0.05 && p > -0.05 && r < 0.05 && r > -0.05 && w < 0.05 && w > -0.05) {
+    if (p < 0.10 && p > -0.10 && r < 0.10 && r > -0.10 && w < 0.10 && w > -0.10) {
       tempDataP.push(0);
       tempDataR.push(0);
 
       this.setState({gyroChanged: false});
-
-      // IDEA: TURN SCREEN GREEN HERE. ONLY RECORD ACCEL DATA IF THE GYROSCOPE HAS NONE TO MINIMAL ROTATIONS,
-      // WHICH WILL MAKE THE ACCEL MUCH MORE ACCURATE.
-
     } else {
-      // IDEA CONTINUED: TURN SCREEN RED HERE. SHOULDN'T BE RECORDING IF IT IS ROTATING BECAUSE
-      // THEN GRAVITY IS HAVING A HUGE EFFECT ON IT.
-
       tempDataP.push(p);
       tempDataR.push(r);
 
@@ -213,9 +205,11 @@ export default class App extends React.Component {
     tempDataZ.push(0);
 
     // Average handler
-    averageCount++;
+    let avg = this.state.averageCount;
+    avg++;
+    this.setState({averageCount: avg})
 
-    if (averageCount == AVERAGE) {
+    if (this.state.averageCount == AVERAGE) {
       // Accelerometer averaging and updating
       tempDataX = this.state.accelDataX.slice();
       tempDataX.push(arrayAverage(this.state.avgAccelDataX));
@@ -252,20 +246,27 @@ export default class App extends React.Component {
         accelDataX: tempDataX, accelDataY:  tempDataY, accelDataZ:  tempDataZ,
         avgAccelDataX: [], avgAccelDataY: [], avgAccelDataZ: [],
         avgGyroDataP: [], avgGyroDataR: [],
-        gyroAngleP: tempGyroAngleP, gyroAngleR: tempGyroAngleR
+        gyroAngleP: tempGyroAngleP, gyroAngleR: tempGyroAngleR,
         // finalAngleX: filterAngleX, finalAngleY: filterAngleY
+
       });
 
-      averageCount = 0;
+      this.state.averageCount = 0;
 
       // Calculate the positions based off of JUST the accelerometer
       this.findPositionX();
       this.findPositionY();
       this.findPositionZ();
     } else {
+      // Time for background color:
+      let elapsed = new Date().getTime() - this.state.startTime;
+      elapsed = 100 - elapsed / 70;
+      if (elapsed <= -5) elapsed = -5;
+
       this.setState({
         avgAccelDataX: tempDataX, avgAccelDataY: tempDataY, avgAccelDataZ: tempDataZ,
-        avgGyroDataP: tempDataP, avgGyroDataR: tempDataR
+        avgGyroDataP: tempDataP, avgGyroDataR: tempDataR,
+        backgroundColor: numberToColorHsl(elapsed)
       });
     }
 
@@ -280,17 +281,15 @@ export default class App extends React.Component {
       this.intervalObj = setInterval(this.tick.bind(this), INTERVAL);
       this.setState({ startButtonText: "Stop Collecting Accel Data"});
 
-      timer = new Date().getTime();
+
+      this.setState({startTime: new Date().getTime()})
     }
     else {
       clearInterval(this.intervalObj);
 
-      // Reset the positions (and timer)!
+      // Reset the positions
       let tempPositions = this.state.positionPoints.slice();
       tempPositions.push({ x: 0, y: 0, z: 0 });
-
-      timer = null;
-      times.push(0);
 
       this.setState({ startButtonText: "Start Collecting Accel Data",
                       positionPoints: tempPositions,
@@ -307,7 +306,9 @@ export default class App extends React.Component {
                       gyroAngleR: 0,
                       gyroAngleW: 0,
                       finalAngleX: 0,
-                      finalAngleY: 0
+                      finalAngleY: 0,
+                      timeElapsed: 0,
+                      backgroundColor: "#000000"
                     });
     }
     // Do this at the end because it doesn't change state quick enough
@@ -337,10 +338,6 @@ export default class App extends React.Component {
     //   sum += currData[i];
     // }
     // console.log(sum);
-
-    // Checking stitching timer:
-    // console.log("Stiching Timer: ");
-    // console.log(times);
 
     // let xAccel = this.state.accelDataX.slice();
     // let xVeloc = this.state.velocDataX.slice();
@@ -433,11 +430,6 @@ export default class App extends React.Component {
 
   // Pop the most recent position point off the running stack and put it onto the stack to be sent to the server
   onPressTrackPosition() {
-    // Push the time on for the weighted stitching algorithm (divide by 100 for simpler analysis)
-    currTime = new Date().getTime();
-    times.push((currTime - timer) / 100);
-
-    // Just based off the accelerometer
     let tempPoints = this.state.positionPoints.slice();
     tempPoints.push(
       {
@@ -469,13 +461,33 @@ export default class App extends React.Component {
       }).catch(error => console.log(error));
   }
 
+  toggleExpanded = () => {
+    // Toggling the state of single Collapsible
+    this.setState({ collapsed: !this.state.collapsed });
+  };
+
   render() {
     let { x, y, z } = this.state.accelerometerData;
     let { x: p, y: r, z: w } = this.state.gyroscopeData;
 
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Accelerometer:</Text>
+      <View style={[styles.container, {backgroundColor: this.state.backgroundColor}]}>
+
+        <View style={styles.instructionsCollapsible}>
+          <TouchableOpacity style={styles.instructionsButton} onPress={this.toggleExpanded}>
+                <Text style={styles.instructionsButtonText}>Instructions</Text>
+          </TouchableOpacity>
+          <Collapsible collapsed={this.state.collapsed}>
+            <View style={styles.content}>
+              <Text style={styles.contentText}>
+                This is a dummy text of Single Collapsible View
+              </Text>
+            </View>
+          </Collapsible>
+        </View>
+
+        {/* This is here if you want live data, for developing. */}
+        {/* <Text style={styles.text}>Accelerometer:</Text>
         <Text style={styles.text}>X: {round(x)} Y: {round(y)} Z: {round(z)}</Text>
 
         <Text style={styles.text}>Gyroscope:</Text>
@@ -485,7 +497,7 @@ export default class App extends React.Component {
         <Text style={styles.text}>pitch: {round(this.state.gyroAngleP)} roll: {round(this.state.gyroAngleR)}</Text>
 
         <Text style={styles.text}>Final Angles:</Text>
-        <Text style={styles.text}>X: {round(this.state.finalAngleX)} Y: {round(this.state.finalAngleY)}</Text>
+        <Text style={styles.text}>X: {round(this.state.finalAngleX)} Y: {round(this.state.finalAngleY)}</Text> */}
 
         <TouchableOpacity
           style={styles.button}
@@ -493,8 +505,9 @@ export default class App extends React.Component {
           <Text style={styles.buttonText}>{this.state.startButtonText}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.text}>Accel Data Count: {this.state.accelDataX.length}</Text>
-        <Text style={styles.text}>Posit Data Count: {this.state.positionDataX.length}</Text>
+        {/* For development. */}
+        {/* <Text style={styles.text}>Accel Data Count: {this.state.accelDataX.length}</Text>
+        <Text style={styles.text}>Posit Data Count: {this.state.positionDataX.length}</Text> */}
 
         <TouchableOpacity
           style={styles.button}
@@ -505,21 +518,23 @@ export default class App extends React.Component {
         <Text style={styles.text}>Position Point Count: {this.state.positionPoints.length}</Text>
 
         <TouchableOpacity
-          style={styles.button}
+          style={styles.sendDataButton}
           onPress={this.onPressSendData.bind(this)}>
-          <Text style={styles.buttonText}>Send Data</Text>
+          <Text style={styles.sendDataButtonText}>Send Data</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        {/* This is here if you want to debug! */}
+        {/* <TouchableOpacity
           style={styles.debug}
           onPress={this.onPressDebug.bind(this)}>
           <Text style={styles.buttonText}>DEBUG</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     );
   }
 }
 
+// Used for more readable values on the live sensor readings
 function round(n) {
   if (!n) {
     return 0;
@@ -547,7 +562,6 @@ function arrayToJson(objects) {
 
 // Algorithm for connecting each trace of position data
 function stitchPoints(points) {
-  // Edit the position data based off of the timer (higher time = move to the closest point)
   let len = points.length;
 
   // Set this to the length of the CURRENT CHAIN, not the length of ALL THE POINTS
@@ -557,7 +571,6 @@ function stitchPoints(points) {
   // Don't need to touch the first point
   for (let i = 1; i < len - 2; i++) {
     let currPoint = points[i];
-    let currTime = times[i];
 
     chainLength++;
 
@@ -607,17 +620,69 @@ function arrayAverage(arr) {
   return avg / arr.length;
 }
 
+// From: https://stackoverflow.com/questions/2353211/hsl-to-rgb-color-conversion
+function hslToRgb(h, s, l){
+  var r, g, b;
+
+  if(s == 0){
+      r = g = b = l; // achromatic
+  }else{
+      function hue2rgb(p, q, t){
+          if(t < 0) t += 1;
+          if(t > 1) t -= 1;
+          if(t < 1/6) return p + (q - p) * 6 * t;
+          if(t < 1/2) return q;
+          if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+      }
+
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      var p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+  }
+
+  return [Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255)];
+}
+
+// Convert a number to a color using hsl
+function numberToColorHsl(i) {
+  // as the function expects a value between 0 and 1, and red = 0° and green = 120°
+  // we convert the input to the appropriate hue value
+  var hue = i * 1.2 / 360;
+  // we convert hsl to rgb (saturation 100%, lightness 50%)
+  var rgb = hslToRgb(hue, 1, .5);
+  // we format to css value and return
+  return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: "#000000",
     alignItems: 'center',
     justifyContent: 'center'
   },
   button: {
     backgroundColor: '#09a8cd',
     borderRadius: 10,
-    margin: 10
+    margin: 20
+  },
+  sendDataButton: {
+    backgroundColor: '#90d9ef',
+    borderRadius: 10,
+    position: "absolute",
+    bottom: 0,
+    margin: 30
+  },
+  sendDataButtonText: {
+    color: "#000000",
+    fontSize: 20,
+    textAlign: 'center',
+    margin: 10,
+    fontWeight: "bold",
+    fontSize: 40
   },
   debug: {
     backgroundColor: '#90d9ef',
@@ -633,5 +698,30 @@ const styles = StyleSheet.create({
   text: {
     margin: 4,
     color: '#FFFFFF'
+  },
+  instructionsCollapsible: {
+    position: 'absolute',
+    top: 10
+  },
+  instructionsButton: {
+    backgroundColor: '#09a8cd',
+    borderRadius: 10,
+    marginTop: 20,
+    padding: 10
+  },
+  instructionsButtonText: {
+    textAlign: 'center',
+    fontSize: 20,
+    color: "#FFFFFF",
+    fontWeight: '600'
+  },
+  content: {
+    padding: 20,
+    backgroundColor: '#09a8cd',
+    marginTop: 10,
+    borderRadius: 10
+  },
+  contentText: {
+    color: "#000000"
   }
 });
