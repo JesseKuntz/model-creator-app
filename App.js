@@ -467,6 +467,7 @@ export default class App extends React.Component {
   };
 
   render() {
+    // To Access live sensor readings for development.
     let { x, y, z } = this.state.accelerometerData;
     let { x: p, y: r, z: w } = this.state.gyroscopeData;
 
@@ -480,7 +481,14 @@ export default class App extends React.Component {
           <Collapsible collapsed={this.state.collapsed}>
             <View style={styles.content}>
               <Text style={styles.contentText}>
-                This is a dummy text of Single Collapsible View
+                * Make sure that when you start collecting data, the phone starts as flat as possible.
+                This ensures that the gyroscope can correct for any phone tilting.
+
+                * Before the screen turns red, you should stop collecting data and return to your starting position.
+                Then, when you start collecting the data again, move directly to where you left off and continue along your path.
+
+                * After you finish collecting all the points you want to, send your data.
+                You can keep collecting more, and send it again if you want to as well.
               </Text>
             </View>
           </Collapsible>
@@ -646,7 +654,7 @@ function hslToRgb(h, s, l){
   return [Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255)];
 }
 
-// Convert a number to a color using hsl
+// From: https://stackoverflow.com/questions/2353211/hsl-to-rgb-color-conversion
 function numberToColorHsl(i) {
   // as the function expects a value between 0 and 1, and red = 0° and green = 120°
   // we convert the input to the appropriate hue value
