@@ -12,4 +12,14 @@ NOTE: There are a lot of ways to develop apps, and a lot of ways to develop apps
 I developed mine for an iPhone 7, but Expo is a toolchain built around React Native so the app will work for both
 iPhone and Android. Either way, this is just one way to get it set up - not necessarily the "right" way, if there is one.
 
-Clone the repo.
+Clone the repo. Rename the .env-template file as .env, and follow the instructions in the file, filling in your own information in place of the dummy data.
+
+Once that is done, you can start up the app:
+
+`expo start`
+
+This will show you a bunch of ways that you can access the session with the app on your mobile device. Choose one of those methods, and the bundle will load.
+
+All of the code lives in App.js. Any changes that you make to the code will automatically transfer to your app when you save.
+
+## How it Works
