@@ -11,6 +11,10 @@ let RAD_TO_DEG = 57.29578;
 let executionTime = [];
 
 export default class App extends React.Component {
+  /******************
+  * Class Functions *
+  *******************/
+
   // Set up the initial state
   constructor(props) {
     super(props);
@@ -141,6 +145,7 @@ export default class App extends React.Component {
     }
   }
 
+  // Algorithm to find the Y position: DEPRECATED
   findPositionZ() {
     let zAccel = this.state.accelDataZ.slice();
     let zVeloc = this.state.velocDataZ.slice();
@@ -324,12 +329,19 @@ export default class App extends React.Component {
 
   // The Ultimate Debugger
   onPressDebug() {
+    // The following vars are necessary for many of the following tests
     let avgX = 0;
     let avgY = 0;
     let avgZ = 0;
     let len = this.state.accelDataX.length;
+    let xAccel = this.state.accelDataX.slice();
+    let xVeloc = this.state.velocDataX.slice();
+    let xPosit = this.state.positionDataX.slice();
+    let yAccel = this.state.accelDataY.slice();
 
-    // Checking gyroAngle data (right now they aren't the same... but might not matter):
+    /************************************************************************************
+    * Checking gyroAngle data (right now they aren't the same... but might not matter): *
+    *************************************************************************************/
     // let currAngle = this.state.gyroAngleP;
     // let currData = this.state.gyroDataP.slice();
 
@@ -346,20 +358,18 @@ export default class App extends React.Component {
     // }
     // console.log(sum);
 
-    // let xAccel = this.state.accelDataX.slice();
-    // let xVeloc = this.state.velocDataX.slice();
-    // let xPosit = this.state.positionDataX.slice();
-
-    // let yAccel = this.state.accelDataY.slice();
-
-    // Checking Averages:
+    /***********************************
+    * Checking accelerometer averages: *
+    ************************************/
     // for(let i = 0; i < len; i++) {
     //   avgX += this.state.accelDataX[i];
     //   avgY += this.state.accelDataY[i];
     //   avgZ += this.state.accelDataZ[i];
     // }
 
-    // Feeding in Accel Data Test:
+    /******************************
+    * Feeding in Accel Data Test: *
+    *******************************/
     // for (let i = 0; i < len; i++) {
     //   // New / Smart Way
     //   if (i > 1) {
@@ -382,12 +392,27 @@ export default class App extends React.Component {
     //   this.setState({ velocDataX: xVeloc, positionDataX: xPosit });
     // }
 
-    // Printing all arrays:
+    /*******************************************
+    * Printing accel, veloc, and posit arrays: *
+    ********************************************/
     // console.log("\nAccel Data (X): ");
     // for(let i = 0; i < len; i++) {
     //   console.log(xAccel[i]);
     // }
 
+    // console.log("\nVeloc Data (X): ");
+    // for(let i = 0; i < len; i++) {
+    //   console.log(xVeloc[i]);
+    // }
+
+    // console.log("\nPosit Data (X): ");
+    // for(let i = 0; i < len; i++) {
+    //   console.log(xPosit[i]);
+    // }
+
+    /********************************************************************
+    * Checking the max and min accel values for threshold calculations: *
+    *********************************************************************/
     // Checking the max of the X accel values (winner: 0.1)
     // console.log(`Max XAccel: ${Math.max(...xAccel)}`)
 
@@ -400,16 +425,10 @@ export default class App extends React.Component {
     // Checking the min of the Y accel values (winner: -0.1)
     // console.log(`Min YAccel: ${Math.min(...yAccel)}`)
 
-    // console.log("\nVeloc Data (X): ");
-    // for(let i = 0; i < len; i++) {
-    //   console.log(xVeloc[i]);
-    // }
 
-    // console.log("\nPosit Data (X): ");
-    // for(let i = 0; i < len; i++) {
-    //   console.log(xPosit[i]);
-    // }
-
+    /*********************************************************************
+    * Printing various arrays in different formats for Excel copy/paste: *
+    **********************************************************************/
     // console.log("Accel Data (X): " + this.state.accelDataX.join(",") + "\n");
     // console.log("AVG OF Accel Data (X): " + avgX / len + "\n");
     // console.log("Accel Data (Y): " + this.state.accelDataY.join(",") + "\n");
@@ -423,14 +442,18 @@ export default class App extends React.Component {
     // console.log("Y: " + newDataFormat.y.join(",") + "\n");
     // console.log("Z: " + newDataFormat.z.join(",") + "\n");
 
-    // Console Graphing (W.I.P.):
+    /*****************************
+    * Console Graphing (W.I.P.): *
+    ******************************/
     // var s0 = new Array (120);
     // for (var i = 0; i < s0.length; i++) {
     //   s0[i] = 15 * Math.sin (i * ((Math.PI * 4) / s0.length));
     // }
     // console.log (asciichart.plot (s0));
 
-    // Printing execution times:
+    /****************************
+    * Printing execution times: *
+    *****************************/
     // console.log(`Max Time: ${Math.max(...executionTime)}`);
     // console.log(`Average Time: ${arrayAverage(executionTime)}`);
   }
@@ -451,16 +474,17 @@ export default class App extends React.Component {
     }
   }
 
+  // Stitch the data and send it to the specified IP address, where the server is waiting
   onPressSendData() {
     /***************************************
     * SWAP THIS OUT BETWEEN WIFI LOCATIONS *
     ****************************************/
+    let address = 'http://10.0.0.44:3000/';
 
     let points = stitchPoints(this.state.positionPoints);
     this.setState({positionPoints: points});
 
-    // fetch('http://153.106.86.133:3000/',{
-    fetch('http://10.0.0.44:3000/', {
+    fetch(address, {
       method: 'POST',
       body: JSON.stringify(arrayToJson(this.state.positionPoints)),
       headers: { "Content-Type": "application/json" }
@@ -474,6 +498,10 @@ export default class App extends React.Component {
     // Toggling the state of single Collapsible
     this.setState({ collapsed: !this.state.collapsed });
   };
+
+  /*****************
+  * Render the DOM *
+  ******************/
 
   // This happens every 16.67ms (60 frames a second) >> https://facebook.github.io/react-native/docs/performance
   render() {
@@ -528,9 +556,9 @@ export default class App extends React.Component {
 
         {/* TRACK POSITION BUTTON */}
         <TouchableOpacity
-          style={[styles.button, {backgroundColor: this.state.trackPositionButtonColor}]}
+          style={[styles.trackPositionButton, {backgroundColor: this.state.trackPositionButtonColor}]}
           onPress={this.onPressTrackPosition.bind(this)}>
-          <Text style={styles.buttonText}>Track Position Point</Text>
+          <Text style={styles.trackPositionButtonText}>Track Position Point</Text>
         </TouchableOpacity>
 
         {/* POSITION POINT TEXT */}
@@ -553,6 +581,10 @@ export default class App extends React.Component {
     );
   }
 }
+
+/*******************
+* Helper Functions *
+********************/
 
 // Used for more readable values on the live sensor readings
 function round(n) {
@@ -676,6 +708,10 @@ function numberToColorHsl(i) {
   return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
 }
 
+/*********
+* Styles *
+**********/
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -683,12 +719,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  button: {
+  trackPositionButton: {
     backgroundColor: '#09a8cd',
     borderRadius: 10,
     margin: 20
   },
-  buttonText: {
+  trackPositionButtonText: {
     color: "#FFFFFF",
     fontSize: 30,
     textAlign: 'center',
