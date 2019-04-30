@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { Accelerometer, Gyroscope } from 'expo';
 import Collapsible from 'react-native-collapsible';
 
@@ -7,7 +7,7 @@ let INTERVAL = 30;
 let AVERAGE = 3;
 let RAD_TO_DEG = 57.29578;
 
-// Really just for debugging
+// For debugging tick() execution length
 let executionTime = [];
 
 export default class App extends React.Component {
@@ -38,10 +38,11 @@ export default class App extends React.Component {
       finalAngleX: 0,
       finalAngleY: 0,
       gyroChanged: true,
-      // positionPoints: [{"x":0,"y":0,"z":0},{"x":-0.03517225879231546,"y":-0.2117156680413678,"z":0},{"x":-0.005328681826757817,"y":-0.5336087904524555,"z":0},{"x":0.2134250259067349,"y":-0.983996844430415,"z":0},{"x":0.45743091510447875,"y":-1.3546667530961018,"z":0},{"x":0,"y":0,"z":0},{"x":-0.8690133680888874,"y":-0.981780185983717,"z":0},{"x":-1.1039704520830214,"y":-1.6050787404007893,"z":0},{"x":-1.4349676616568765,"y":-2.3924557224784833,"z":0},{"x":-1.9672830119471716,"y":-3.584038695693362,"z":0},{"x":-2.6185877065671876,"y":-5.046198814830581,"z":0},{"x":0,"y":0,"z":0}],
-      startButtonText: "Start Collecting Data",
+      startStopButtonText: "Start",
       startTime: 0,
       backgroundColor: "#000000",
+      startStopButtonColor: "#09a8cd",
+      trackPositionButtonColor: "#aaaaaa",
       collapsed: true,
       averageCount: 0
     };
@@ -88,7 +89,7 @@ export default class App extends React.Component {
     //   this.setState({ velocDataX: xVeloc, positionDataX: xPosit });
     // }
 
-    // "New / Smart?" Way
+    // "New / Smart" Way
     if (xAccel.length > 1) {
       xVeloc.push(xVeloc[xVeloc.length - 1] + xAccel[xAccel.length - 2] + ((xAccel[xAccel.length - 1] - xAccel[xAccel.length - 2])>>1));
       xPosit.push(xPosit[xPosit.length - 1] + xVeloc[xVeloc.length - 2] + ((xVeloc[xVeloc.length - 1] - xVeloc[xVeloc.length - 2])>>1));
@@ -100,6 +101,7 @@ export default class App extends React.Component {
     }
   }
 
+  // Algorithm to find the Y position (called by tick())
   findPositionY() {
     let yAccel = this.state.accelDataY.slice();
     let yVeloc = this.state.velocDataY.slice();
@@ -127,7 +129,7 @@ export default class App extends React.Component {
     //   this.setState({ velocDataY: yVeloc, positionDataY: yPosit });
     // }
 
-    // "New / Smart?" Way
+    // "New / Smart" Way
     if (yAccel.length > 1) {
       yVeloc.push(yVeloc[yVeloc.length - 1] + yAccel[yAccel.length - 2] + ((yAccel[yAccel.length - 1] - yAccel[yAccel.length - 2])>>1));
       yPosit.push(yPosit[yPosit.length - 1] + yVeloc[yVeloc.length - 2] + ((yVeloc[yVeloc.length - 1] - yVeloc[yVeloc.length - 2])>>1));
@@ -279,19 +281,22 @@ export default class App extends React.Component {
   onPressCollectData() {
     if (this.state.collectPoints) {
       this.intervalObj = setInterval(this.tick.bind(this), INTERVAL);
-      this.setState({ startButtonText: "Stop Collecting Accel Data"});
-
-
-      this.setState({startTime: new Date().getTime()})
+      this.setState({ startTime: new Date().getTime(),
+                      startStopButtonText: "Stop",
+                      startStopButtonColor: "#6D0F0F",
+                      trackPositionButtonColor: "#09a8cd"
+                    });
     }
     else {
       clearInterval(this.intervalObj);
 
-      // Reset the positions
       let tempPositions = this.state.positionPoints.slice();
-      tempPositions.push({ x: 0, y: 0, z: 0 });
 
-      this.setState({ startButtonText: "Start Collecting Accel Data",
+      // Only reset back to 0 if you moved somewhere
+      if (tempPositions[tempPositions.length - 1].x !== 0) tempPositions.push({ x: 0, y: 0, z: 0 });
+
+      // Reset the positions
+      this.setState({ startStopButtonText: "Start",
                       positionPoints: tempPositions,
                       accelDataX: [],
                       accelDataY: [],
@@ -308,7 +313,9 @@ export default class App extends React.Component {
                       finalAngleX: 0,
                       finalAngleY: 0,
                       timeElapsed: 0,
-                      backgroundColor: "#000000"
+                      backgroundColor: "#000000",
+                      startStopButtonColor: "#09a8cd",
+                      trackPositionButtonColor: "#aaaaaa"
                     });
     }
     // Do this at the end because it doesn't change state quick enough
@@ -430,16 +437,18 @@ export default class App extends React.Component {
 
   // Pop the most recent position point off the running stack and put it onto the stack to be sent to the server
   onPressTrackPosition() {
-    let tempPoints = this.state.positionPoints.slice();
-    tempPoints.push(
-      {
-        x: this.state.positionDataX[this.state.positionDataX.length - 1],
-        y: this.state.positionDataY[this.state.positionDataY.length - 1],
-        z: this.state.positionDataZ[this.state.positionDataZ.length - 1]
-      }
-    );
+    if (!this.state.collectPoints) {
+      let tempPoints = this.state.positionPoints.slice();
+      tempPoints.push(
+        {
+          x: this.state.positionDataX[this.state.positionDataX.length - 1],
+          y: this.state.positionDataY[this.state.positionDataY.length - 1],
+          z: this.state.positionDataZ[this.state.positionDataZ.length - 1]
+        }
+      );
 
-    this.setState({ positionPoints: tempPoints });
+      this.setState({ positionPoints: tempPoints });
+    }
   }
 
   onPressSendData() {
@@ -466,29 +475,28 @@ export default class App extends React.Component {
     this.setState({ collapsed: !this.state.collapsed });
   };
 
+  // This happens every 16.67ms (60 frames a second) >> https://facebook.github.io/react-native/docs/performance
   render() {
-    // To Access live sensor readings for development.
+    // To access live sensor readings for development.
     let { x, y, z } = this.state.accelerometerData;
     let { x: p, y: r, z: w } = this.state.gyroscopeData;
 
     return (
       <View style={[styles.container, {backgroundColor: this.state.backgroundColor}]}>
 
+        {/* INSTRUCTIONS COLLAPSIBLE */}
         <View style={styles.instructionsCollapsible}>
           <TouchableOpacity style={styles.instructionsButton} onPress={this.toggleExpanded}>
                 <Text style={styles.instructionsButtonText}>Instructions</Text>
           </TouchableOpacity>
           <Collapsible collapsed={this.state.collapsed}>
-            <View style={styles.content}>
-              <Text style={styles.contentText}>
-                * Make sure that when you start collecting data, the phone starts as flat as possible.
-                This ensures that the gyroscope can correct for any phone tilting.
+            <View style={styles.instructionsContent}>
+              <Text style={styles.instructionsContentText}>
+{`* Make sure that when you start collecting data, the phone starts as flat as possible. This ensures that the gyroscope can correct for any phone tilting.
 
-                * Before the screen turns red, you should stop collecting data and return to your starting position.
-                Then, when you start collecting the data again, move directly to where you left off and continue along your path.
+* After you start collecting data, and before the screen turns red, you should stop collecting data and return to your starting position. Then, when you start collecting the data again, move directly to where you left off and continue along your path.
 
-                * After you finish collecting all the points you want to, send your data.
-                You can keep collecting more, and send it again if you want to as well.
+* After you finish collecting all the points you want to, send your data. You can keep collecting more, and send it again if you want to as well.`}
               </Text>
             </View>
           </Collapsible>
@@ -507,24 +515,28 @@ export default class App extends React.Component {
         <Text style={styles.text}>Final Angles:</Text>
         <Text style={styles.text}>X: {round(this.state.finalAngleX)} Y: {round(this.state.finalAngleY)}</Text> */}
 
+        {/* START / STOP BUTTON */}
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.startStopButton, {backgroundColor: this.state.startStopButtonColor}]}
           onPress={this.onPressCollectData.bind(this)}>
-          <Text style={styles.buttonText}>{this.state.startButtonText}</Text>
+          <Text style={styles.startStopButtonText}>{this.state.startStopButtonText}</Text>
         </TouchableOpacity>
 
         {/* For development. */}
         {/* <Text style={styles.text}>Accel Data Count: {this.state.accelDataX.length}</Text>
         <Text style={styles.text}>Posit Data Count: {this.state.positionDataX.length}</Text> */}
 
+        {/* TRACK POSITION BUTTON */}
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, {backgroundColor: this.state.trackPositionButtonColor}]}
           onPress={this.onPressTrackPosition.bind(this)}>
           <Text style={styles.buttonText}>Track Position Point</Text>
         </TouchableOpacity>
 
-        <Text style={styles.text}>Position Point Count: {this.state.positionPoints.length}</Text>
+        {/* POSITION POINT TEXT */}
+        <Text style={styles.text}># of Positions:  {this.state.positionPoints.length}</Text>
 
+        {/* SEND DATA BUTTON */}
         <TouchableOpacity
           style={styles.sendDataButton}
           onPress={this.onPressSendData.bind(this)}>
@@ -574,7 +586,6 @@ function stitchPoints(points) {
 
   // Set this to the length of the CURRENT CHAIN, not the length of ALL THE POINTS
   let chainLength = 1;
-  console.log(points);
 
   // Don't need to touch the first point
   for (let i = 1; i < len - 2; i++) {
@@ -677,6 +688,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     margin: 20
   },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 30,
+    textAlign: 'center',
+    margin: 10
+  },
+  startStopButton: {
+    backgroundColor: '#09a8cd',
+    borderRadius: 10,
+    margin: 20
+  },
+  startStopButtonText: {
+    color: "#FFFFFF",
+    fontSize: 30,
+    textAlign: 'center',
+    margin: 10
+  },
   sendDataButton: {
     backgroundColor: '#90d9ef',
     borderRadius: 10,
@@ -697,24 +725,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     margin: 40
   },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10
-  },
   text: {
     margin: 4,
-    color: '#FFFFFF'
+    color: '#FFFFFF',
+    fontSize: 30
   },
   instructionsCollapsible: {
     position: 'absolute',
-    top: 10
+    top: 10,
+    zIndex: 2
   },
   instructionsButton: {
-    backgroundColor: '#09a8cd',
+    backgroundColor: '#4275BE',
     borderRadius: 10,
     marginTop: 20,
+    marginLeft: 10,
+    marginRight: 10,
     padding: 10
   },
   instructionsButtonText: {
@@ -723,13 +749,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: '600'
   },
-  content: {
-    padding: 20,
-    backgroundColor: '#09a8cd',
+  instructionsContent: {
+    padding: 15,
+    backgroundColor: '#ffffff',
     marginTop: 10,
+    marginLeft: 10,
+    marginRight: 10,
     borderRadius: 10
   },
-  contentText: {
-    color: "#000000"
+  instructionsContentText: {
+    color: "#000000",
+    fontSize: 20
   }
 });
