@@ -658,6 +658,7 @@ function stitchPoints(points) {
     }
     chainLength = 1;
   }
+
   // Return the altered positions points
   return points;
 }
