@@ -1,10 +1,14 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Accelerometer, Gyroscope } from 'expo';
 import Collapsible from 'react-native-collapsible';
+import { IP_ADDRESS, PORT } from 'react-native-dotenv';
 
+// GLOBAL VARS USED FOR tick() FUNCTION
 let INTERVAL = 30;
 let AVERAGE = 3;
+
+// Only used for the (unimplemented) complementary filter on the gyroscope
 let RAD_TO_DEG = 57.29578;
 
 // For debugging tick() execution length
@@ -145,7 +149,7 @@ export default class App extends React.Component {
     }
   }
 
-  // Algorithm to find the Y position: DEPRECATED
+  // Algorithm to find the Z position: FUTURE WORK
   findPositionZ() {
     let zAccel = this.state.accelDataZ.slice();
     let zVeloc = this.state.velocDataZ.slice();
@@ -194,6 +198,7 @@ export default class App extends React.Component {
 
       this.setState({gyroChanged: false});
     } else {
+      // Only need pitch and roll for X and Y accelerometer corrections
       tempDataP.push(p);
       tempDataR.push(r);
 
@@ -208,14 +213,17 @@ export default class App extends React.Component {
 
     tempDataX.push(correctX - angleCorrectX);
     tempDataY.push(correctY - angleCorrectY);
-    // tempDataZ.push(z + offZ);
+
+    // Just push 0, for now (to make it in two axes only)
     tempDataZ.push(0);
+    // tempDataZ.push(z + offZ);
 
     // Average handler
     let avg = this.state.averageCount;
     avg++;
     this.setState({averageCount: avg})
 
+    // If we have collected 3 points, average them and calculate position
     if (this.state.averageCount == AVERAGE) {
       // Accelerometer averaging and updating
       tempDataX = this.state.accelDataX.slice();
@@ -233,6 +241,9 @@ export default class App extends React.Component {
       tempGyroAngleP += arrayAverage(this.state.avgGyroDataP) * 0.07 * INTERVAL * AVERAGE * 2;
       tempGyroAngleR += arrayAverage(this.state.avgGyroDataR) * 0.07 * INTERVAL * AVERAGE * 2;
 
+      /***************************************************
+      * Complementary Filter for Gyroscope (FUTURE WORK) *
+      ****************************************************/
       // let accelAngleX = 0;
       // let accelAngleY = 0;
       // let AA = 0.98;
@@ -458,7 +469,8 @@ export default class App extends React.Component {
     // console.log(`Average Time: ${arrayAverage(executionTime)}`);
   }
 
-  // Pop the most recent position point off the running stack and put it onto the stack to be sent to the server
+  // Pop the most recent position point off the
+  // running stack and put it onto the queue to be sent to the server
   onPressTrackPosition() {
     if (!this.state.collectPoints) {
       let tempPoints = this.state.positionPoints.slice();
@@ -479,7 +491,7 @@ export default class App extends React.Component {
     /***************************************
     * SWAP THIS OUT BETWEEN WIFI LOCATIONS *
     ****************************************/
-    let address = 'http://10.0.0.44:3000/';
+    let address = "http://" + IP_ADDRESS + ":" + PORT + "/"
 
     let points = stitchPoints(this.state.positionPoints);
     this.setState({positionPoints: points});

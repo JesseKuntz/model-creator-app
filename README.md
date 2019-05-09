@@ -12,7 +12,7 @@ NOTE: There are a lot of ways to develop apps, and a lot of ways to develop apps
 I developed mine for an iPhone 7, but Expo is a toolchain built around React Native so the app will work for both
 iPhone and Android. Either way, this is just one way to get it set up - not necessarily the "right" way, if there is one. If there are problems with my instructions, refer to https://docs.expo.io/versions/latest/introduction/installation/, as stuff might have changed.
 
-Clone the repo. Find the onPressSendData() function in 'App.js' and replace the address with the IP of the computer running the web server as well as the port it is running on. It should have the format: 'http://10.4.5.97:2999/'
+Clone the repo. Clone the repo. Rename the .env-template file as .env, and follow the instructions in the file, filling in your own information in place of the dummy data.
 
 Once that is done, you can start up the app:
 
