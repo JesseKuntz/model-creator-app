@@ -20,7 +20,7 @@ Once all of the position points have been collected, you can send the data to a 
 
 *  Git (but hopefully you have that already): https://git-scm.com/
 
-*  Node.js: https://nodejs.org/en/
+*  npm: https://www.npmjs.com/get-npm
 
 *  Expo CLI: `npm install -g expo-cli`
 
@@ -40,7 +40,10 @@ iPhone and Android. Either way, this is just one way to get it set up - not nece
 
 Clone the repo. Clone the repo. Rename the .env-template file as .env, and follow the instructions in the file, filling in your own information in place of the dummy data.
 
+Run the following commands:
 
+`npm install`
+`react-native link`
 
 Once that is done, you can start up the app:
 
